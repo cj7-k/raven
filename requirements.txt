@@ -1,0 +1,33 @@
+# Core
+python-dotenv==1.0.1
+pydantic==2.9.2
+
+# Scraping
+scrapy==2.11.2
+playwright==1.47.0
+beautifulsoup4==4.12.3
+
+# Chunking / Orchestration
+langchain==0.3.4
+langchain-community==0.3.3
+
+# Vector store
+chromadb==0.5.15
+faiss-cpu==1.9.0
+
+# LLM / Embeddings
+openai==1.51.2
+anthropic==0.36.1
+
+# Backend
+fastapi==0.115.2
+uvicorn[standard]==0.31.1
+
+# Frontend (pick one; Streamlit is fastest to start with)
+streamlit==1.39.0
+
+# Caching / infra
+redis==5.1.1
+
+# Testing
+pytest==8.3.3
