@@ -48,33 +48,15 @@ tests/            # pytest test suite
    ```
    Visit `http://localhost:8000/docs` for the interactive API docs.
 
-## Team Ownership
-
-| Area | Owner |
-|---|---|
-| RAG core (retriever, generator, prompt design) + system integration | Leader |
-| Scraper & ingestion (`src/scraper`) | Member 1 |
-| Preprocessing & vector store (`src/preprocessing`, `src/embeddings`) | Member 2 |
-| API, frontend & deployment (`src/api`, `frontend/`, Docker/Redis) | Member 3 |
-
-## Roadmap
-
-- Week 1-2: Requirement study, literature survey, tool finalization
-- Week 3-4: System architecture design; recursive scraper module
-- Week 5-6: Chunking, embeddings & vector store integration
-- Week 7-8: RAG pipeline + LLM answer generation
-- Week 9-10: Chat interface; backend/frontend integration
-- Week 11-12: Testing, latency optimization, documentation, final review
-
 ## Stack
 
 | Layer | Tool |
 |---|---|
 | Language | Python |
-| Scraping | Scrapy / Playwright / BeautifulSoup |
+| Scraping | Playwright |
 | Chunking & Orchestration | LangChain |
-| Vector Store | Chroma (dev) -> FAISS / Pinecone (prod) |
-| LLM / Embeddings | OpenAI / Anthropic |
+| Vector Store | ChromaDB |
+| LLM / Embeddings | OpenAI |
 | Backend | FastAPI |
-| Frontend | Streamlit / React |
-| Deployment & Caching | Docker, Redis |
+| Frontend | Streamlit |
+| Deployment & Caching | Docker + Redis |
