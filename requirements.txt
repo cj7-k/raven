@@ -4,7 +4,7 @@ pydantic==2.9.2
 
 # Scraping
 scrapy==2.11.2
-playwright==1.47.0
+playwright==1.49.1
 beautifulsoup4==4.12.3
 
 # Chunking / Orchestration
@@ -13,7 +13,7 @@ langchain-community==0.3.3
 
 # Vector store
 chromadb==0.5.15
-faiss-cpu==1.9.0
+faiss-cpu==1.9.0.post1
 
 # LLM / Embeddings
 openai==1.51.2

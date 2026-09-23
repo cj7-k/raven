@@ -1,14 +1,10 @@
-# Python
 __pycache__/
 *.pyc
 .venv/
 venv/
 *.egg-info/
-
-# Env
 .env
 
-# Data (raw/processed/index files shouldn't be committed)
 data/raw/*
 data/processed/*
 data/vector_index/*
@@ -16,12 +12,10 @@ data/vector_index/*
 !data/processed/.gitkeep
 !data/vector_index/.gitkeep
 
-# IDE
 .vscode/
 .idea/
 
 # OS
 .DS_Store
 
-# Logs
 *.log
