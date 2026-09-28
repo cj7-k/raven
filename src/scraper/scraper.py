@@ -31,7 +31,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 
 DEFAULT_MAX_DEPTH = 2
 DEFAULT_MAX_PAGES = 50
-DEFAULT_TIMEOUT_MS = 15_000
+DEFAULT_TIMEOUT_MS = 30_000
 DEFAULT_DELAY_SECONDS = 0.5  # be polite, avoid hammering the target site
 
 # Tags whose text content is noise, not real page content
@@ -43,6 +43,39 @@ SKIP_EXTENSIONS = (
     ".css", ".js", ".zip", ".mp4", ".mp3", ".woff", ".woff2", ".ttf",
     ".xml", ".json", ".rss",
 )
+
+# Wikipedia (and similar wiki-style sites) namespace prefixes that are not
+# real article content - talk pages, category indexes, admin pages, etc.
+WIKI_NON_ARTICLE_PREFIXES = (
+    "Talk:", "Category:", "Special:", "Wikipedia:", "Help:", "Portal:",
+    "User:", "User_talk:", "File:", "Template:", "Template_talk:",
+    "Module:", "MediaWiki:", "Draft:", "TimedText:", "Media:",
+)
+
+
+def is_wiki_utility_url(url: str) -> bool:
+    """Detect Wikipedia-style utility/meta pages that aren't real article content."""
+    parsed = urlparse(url)
+
+    # URLs like /w/index.php?title=...&action=edit (edit, history, print, etc.)
+    if "/w/index.php" in parsed.path:
+        return True
+
+    # Query-string actions on article pages, e.g. ?action=edit, ?action=info
+    if re.search(r"[?&]action=", url):
+        return True
+
+    # Non-article namespaces, e.g. /wiki/Talk:Skin_care, /wiki/Category:Skin_care
+    if "/wiki/" in parsed.path:
+        page_title = parsed.path.split("/wiki/", 1)[-1]
+        if any(page_title.startswith(prefix) for prefix in WIKI_NON_ARTICLE_PREFIXES):
+            return True
+
+    # Identifier/reference stub pages, e.g. S2CID_(identifier), ISBN_(identifier)
+    if "_(identifier)" in url:
+        return True
+
+    return False
 
 
 @dataclass
@@ -67,19 +100,35 @@ def normalize_url(url: str) -> str:
     return normalized.geturl()
 
 
+def normalize_domain(netloc: str) -> str:
+    """Treat 'www.example.com' and 'example.com' as the same domain."""
+    return netloc.lower().removeprefix("www.")
+
+
 def is_same_domain(url: str, base_domain: str) -> bool:
-    return urlparse(url).netloc == base_domain
+    return normalize_domain(urlparse(url).netloc) == normalize_domain(base_domain)
 
 
 def should_skip_url(url: str) -> bool:
     lowered = url.lower()
-    return any(lowered.endswith(ext) for ext in SKIP_EXTENSIONS)
+    if any(lowered.endswith(ext) for ext in SKIP_EXTENSIONS):
+        return True
+    if is_wiki_utility_url(url):
+        return True
+    return False
 
 
-def extract_links(html: str, current_url: str, base_domain: str) -> set:
+def extract_links(html: str, current_url: str, base_domain: str, debug: bool = False) -> set:
     soup = BeautifulSoup(html, "html.parser")
+    all_anchor_tags = soup.find_all("a", href=True)
     links = set()
-    for a_tag in soup.find_all("a", href=True):
+
+    if debug:
+        print(f"     [debug] total <a href> tags on page: {len(all_anchor_tags)}")
+        for a_tag in all_anchor_tags[:10]:
+            print(f"     [debug] sample href: {a_tag['href']!r}")
+
+    for a_tag in all_anchor_tags:
         href = a_tag["href"].strip()
         if not href or href.startswith(("mailto:", "tel:", "javascript:")):
             continue
@@ -87,6 +136,7 @@ def extract_links(html: str, current_url: str, base_domain: str) -> set:
         absolute = normalize_url(absolute)
         if is_same_domain(absolute, base_domain) and not should_skip_url(absolute):
             links.add(absolute)
+
     return links
 
 
@@ -135,6 +185,7 @@ def crawl(
     max_pages: int = DEFAULT_MAX_PAGES,
     delay_seconds: float = DEFAULT_DELAY_SECONDS,
     timeout_ms: int = DEFAULT_TIMEOUT_MS,
+    headless: bool = True,
 ) -> list:
     start_url = normalize_url(start_url)
     base_domain = urlparse(start_url).netloc
@@ -144,8 +195,22 @@ def crawl(
     results = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(user_agent="RAVEN-Bot/1.0 (+educational RAG project crawler)")
+        browser = p.chromium.launch(
+            headless=headless,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        page = browser.new_page(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1366, "height": 768},
+        )
+        # Hide the most common automation fingerprint that bot-detection
+        # services (like Cloudflare) check for.
+        page.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+        )
 
         while queue and len(results) < max_pages:
             url, depth = queue.popleft()
@@ -157,7 +222,21 @@ def crawl(
             print(f"[depth {depth}] scraping: {url}")
 
             try:
-                page.goto(url, timeout=timeout_ms, wait_until="networkidle")
+                page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
+                # Give any late-loading content a brief moment, but don't
+                # block indefinitely on networkidle (many real sites have
+                # continuous background requests - ads, analytics, chat
+                # widgets - that never let networkidle fire).
+                page.wait_for_timeout(1500)
+
+                # Some sites (e.g. behind Cloudflare) show a brief
+                # "checking your browser" challenge page before the real
+                # content loads. If we detect that, wait longer for it
+                # to resolve automatically.
+                page_title = page.title().lower()
+                if any(marker in page_title for marker in ["just a moment", "checking your browser", "attention required"]):
+                    print("  -> detected bot-check page, waiting for it to resolve...")
+                    page.wait_for_timeout(6000)
             except PlaywrightTimeoutError:
                 print(f"  -> timeout, skipping")
                 continue
@@ -168,13 +247,20 @@ def crawl(
             html = page.content()
             title, clean_text, tables = extract_clean_text(html)
 
+            if depth == 0:
+                debug_html_path = Path("data/raw/_debug_first_page.html")
+                debug_html_path.parent.mkdir(parents=True, exist_ok=True)
+                debug_html_path.write_text(html, encoding="utf-8")
+                print(f"  -> saved raw HTML for inspection: {debug_html_path}")
+
             if clean_text:  # skip pages with no real content
                 results.append(
                     ScrapedPage(url=url, depth=depth, title=title, text=clean_text, tables=tables)
                 )
 
             if depth < max_depth:
-                links = extract_links(html, url, base_domain)
+                links = extract_links(html, url, base_domain, debug=True)
+                print(f"  -> found {len(links)} internal link(s)")
                 for link in links:
                     if link not in visited:
                         queue.append((link, depth + 1))
@@ -224,6 +310,7 @@ def main():
     parser.add_argument("--max-pages", type=int, default=DEFAULT_MAX_PAGES, help="Max number of pages to scrape")
     parser.add_argument("--delay", type=float, default=DEFAULT_DELAY_SECONDS, help="Delay between requests (seconds)")
     parser.add_argument("--output", default="data/raw", help="Output directory for scraped JSON")
+    parser.add_argument("--headed", action="store_true", help="Show the browser window instead of running invisibly (useful for debugging bot-checks)")
     args = parser.parse_args()
 
     pages = crawl(
@@ -231,6 +318,7 @@ def main():
         max_depth=args.max_depth,
         max_pages=args.max_pages,
         delay_seconds=args.delay,
+        headless=not args.headed,
     )
     save_results(pages, output_dir=args.output)
 
