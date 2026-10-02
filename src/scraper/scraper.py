@@ -37,6 +37,15 @@ DEFAULT_DELAY_SECONDS = 0.5  # be polite, avoid hammering the target site
 # Tags whose text content is noise, not real page content
 NOISE_TAGS = ["script", "style", "noscript", "nav", "footer", "header", "svg", "form", "iframe"]
 
+# CSS classes used by Wikipedia (and similar MediaWiki sites) for citation
+# markup, reference lists, and other non-prose content that pollutes chunks
+# with bibliographic noise (DOIs, PMIDs, footnote numbers, etc.)
+NOISE_CLASSES = [
+    "reflist", "reference", "references", "cite_note", "mw-cite-backlink",
+    "noprint", "mw-editsection", "navbox", "catlinks", "printfooter",
+    "mw-references-wrap",
+]
+
 # File extensions to skip when following links (non-HTML resources)
 SKIP_EXTENSIONS = (
     ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
@@ -161,6 +170,29 @@ def extract_clean_text(html: str) -> tuple:
     for tag_name in NOISE_TAGS:
         for tag in soup.find_all(tag_name):
             tag.decompose()
+
+    # Remove citation/reference markup (Wikipedia-style) by CSS class, since
+    # these show up as class names rather than distinct tags
+    for noise_class in NOISE_CLASSES:
+        for tag in soup.find_all(class_=noise_class):
+            tag.decompose()
+
+    # Also drop any remaining <ol class="references"> / <cite> elements
+    # directly, in case they weren't caught by class matching above
+    for tag in soup.find_all(["cite"]):
+        tag.decompose()
+    for tag in soup.find_all("ol", class_="references"):
+        tag.decompose()
+
+    # Remove now-empty section headings left behind after stripping
+    # references/citations (e.g. a lone "References" or "Bibliography" title)
+    EMPTY_SECTION_TITLES = {
+        "references", "bibliography", "further reading", "external links",
+        "notes", "citations",
+    }
+    for heading in soup.find_all(["h2", "h3", "h4"]):
+        if heading.get_text(strip=True).lower() in EMPTY_SECTION_TITLES:
+            heading.decompose()
 
     # Prefer <main> or <article> if present, else fall back to <body>
     main_content = soup.find("main") or soup.find("article") or soup.body or soup
