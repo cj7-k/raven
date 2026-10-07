@@ -62,7 +62,7 @@ tests/            # pytest test suite
 | Scraping | Playwright |
 | Chunking & Orchestration | LangChain |
 | Vector Store | ChromaDB |
-| Embeddings | Local (all-MiniLM-L6-v2, free, no API key) |
+| Embeddings | Local |
 | LLM | Groq (`openai/gpt-oss-120b`) |
 | Backend | FastAPI + GraphQL (Strawberry) |
 | Frontend | Streamlit |
