@@ -18,9 +18,9 @@ src/
   preprocessing/  # cleaning, deduplication, chunking
   embeddings/     # embedding generation + vector store wrapper
   rag/            # retrieval + grounded answer generation
-  api/            # FastAPI app (/ingest, /chat)
+  api/            # FastAPI + GraphQL app (/graphql)
   cache/          # Redis client for low-latency serving
-frontend/         # React or Streamlit chat UI
+frontend/         # Streamlit chat UI
 data/             # raw/processed content + vector index (gitignored)
 scripts/          # CLI utilities (run_ingest.py, benchmark_latency.py)
 tests/            # pytest test suite
@@ -38,15 +38,21 @@ tests/            # pytest test suite
    ```
    pip install -r requirements.txt
    ```
-4. Copy `.env.example` to `.env` and fill in your API keys:
+4. Copy `.env.example` to `.env` and fill in your API keys (`GROQ_API_KEY`):
    ```
    cp .env.example .env
    ```
-5. Run the API locally:
+5. Run the backend (Terminal 1):
    ```
    uvicorn src.api.main:app --reload
    ```
-   Visit `http://localhost:8000/docs` for the interactive API docs.
+   Visit `http://localhost:8000/graphql` for the interactive GraphQL playground (GraphiQL).
+
+6. Run the frontend (Terminal 2):
+   ```
+   streamlit run frontend/app.py
+   ```
+   Opens a chat UI in your browser, connected to the backend above.
 
 ## Stack
 
@@ -56,7 +62,8 @@ tests/            # pytest test suite
 | Scraping | Playwright |
 | Chunking & Orchestration | LangChain |
 | Vector Store | ChromaDB |
-| LLM / Embeddings | OpenAI |
-| Backend | FastAPI |
+| Embeddings | Local (all-MiniLM-L6-v2, free, no API key) |
+| LLM | Groq (`openai/gpt-oss-120b`) |
+| Backend | FastAPI + GraphQL (Strawberry) |
 | Frontend | Streamlit |
 | Deployment & Caching | Docker + Redis |
