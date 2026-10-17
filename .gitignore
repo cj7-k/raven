@@ -19,3 +19,5 @@ data/vector_index/*
 .DS_Store
 
 *.log
+
+models/

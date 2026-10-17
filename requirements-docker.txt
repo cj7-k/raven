@@ -1,0 +1,23 @@
+# Runtime dependencies for the Docker image (backend + frontend only).
+#
+# Scraping and preprocessing (playwright, scrapy, langchain, ...) are offline
+# steps you run on your own machine, so they're deliberately left out here.
+# That keeps the image small and the build fast.
+#
+# Versions match the ones already working in your local venv.
+
+python-dotenv==1.0.1
+# same numpy your local venv runs (LangChain pinned it there; it isn't in this image)
+numpy==1.26.4
+pydantic==2.9.2
+chromadb==0.5.15
+# chromadb 0.5.15 breaks with posthog 6+ ("capture() takes 1 positional
+# argument but 3 were given" warnings), so stay on 5.x
+posthog==5.4.0
+groq==1.7.0
+fastapi==0.115.2
+uvicorn[standard]==0.31.1
+strawberry-graphql==0.332.1
+redis==5.1.1
+streamlit==1.39.0
+requests==2.34.2
