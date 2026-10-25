@@ -21,3 +21,4 @@ data/vector_index/*
 *.log
 
 models/
+data/chroma_db/
